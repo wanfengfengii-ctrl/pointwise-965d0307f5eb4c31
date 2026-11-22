@@ -36,3 +36,17 @@ CREATE TABLE IF NOT EXISTS account_groups (
     PRIMARY KEY (account_id, ordinal),
     UNIQUE (account_id, group_id)
 );
+
+CREATE TABLE IF NOT EXISTS catalog_anchors (
+    revision INTEGER PRIMARY KEY REFERENCES received_catalogs(revision),
+    anchor TEXT NOT NULL,
+    mode TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS received_evidence (
+    revision INTEGER NOT NULL,
+    group_id INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    PRIMARY KEY (revision, group_id),
+    FOREIGN KEY (revision, group_id) REFERENCES received_groups(revision, group_id)
+);

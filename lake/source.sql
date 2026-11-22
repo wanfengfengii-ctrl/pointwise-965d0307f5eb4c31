@@ -39,3 +39,16 @@ CREATE TABLE IF NOT EXISTS confirmed_groups (
     PRIMARY KEY (revision, group_id),
     FOREIGN KEY (revision, group_id) REFERENCES frozen_groups(revision, group_id)
 );
+
+CREATE TABLE IF NOT EXISTS revision_anchors (
+    revision INTEGER PRIMARY KEY REFERENCES frozen_revisions(revision),
+    anchor TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS frozen_evidence (
+    revision INTEGER NOT NULL REFERENCES revision_anchors(revision),
+    group_id INTEGER NOT NULL,
+    body TEXT NOT NULL,
+    PRIMARY KEY (revision, group_id)
+);
+

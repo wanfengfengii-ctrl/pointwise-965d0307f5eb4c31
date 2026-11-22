@@ -9,7 +9,7 @@
 ```text
 python3 -B check_project.py
 python3 -B -m unittest discover -s tests -t .
-python3 -B -m examples.demo
+python3 -B -m examples.run_demos
 ```
 
 `check_project.py` 是物化时提供的标准核验入口。演示以 `examples/day.json` 为输入，在独立临时目录建立两库，完成旧件确认丢失、重开、重划、重领确认、重叠件交付和按号核账。完整回归也使用独立临时库。
@@ -42,6 +42,18 @@ python3 -B -m examples.demo
 
 白班在同一份源湖冻结日表时固定核账依据。异地仓用它接纳局部交付，外部复核员用它核对后来取得的计量件或明细件。调用方经独立可信的交班渠道获得锚和本次交付应走的模式，并原样保留锚。交付件和核账件由另外的渠道送达，其自带内容不能代替独立锚。两库沿用原来的版号命名域。
 
+入口与调用约定如下：
+
+```text
+manifest, anchor = lake.freeze.revisions.freeze(
+    source, day_key, batch_ids, group_ids, with_anchor=True)
+parcel = lake.dispatch.parcels.dispatch(source, revision, parcel_id, group_ids=[...])  # 或 wave=...
+wire = parcel.to_json()                         # 含 format/anchor/evidence 的 V2 件
+receipt = lake.receive.acceptance.accept(warehouse, DeliveryParcel.from_json(wire), anchor=anchor)
+bundle = lake.accounts.history.export_audit(warehouse, account_id, [group_id], detail=False)
+groups = lake.accounts.history.verify_audit(bundle, anchor, [group_id], detail=False)
+```
+
 ### 冻结和接纳
 
 - `lake.freeze.revisions.freeze(db, day_key, batch_ids, group_ids, *, with_anchor=False)` 省略选项时沿用原返回值。选 `with_anchor=True` 时返回 `(FrozenManifest, anchor)`。锚为能经 JSON 往返的字典，至少含整数 `revision`，其余证明字段由实现定义。锚与该版目录、组材料同次冻结，发行或重领不得改变冻结依据。
@@ -56,6 +68,8 @@ python3 -B -m examples.demo
 - `bundle` 是能经 JSON 往返的字典，含 `manifest`、`detail`、`groups`、`proof`。`manifest` 用 `FrozenManifest.to_data()` 的字段，线上组目录是数组。`detail` 为布尔值。`groups` 的每项含从 1 起算的原目录 `ordinal`、`group_id` 和 `measure`，计量字段及升量编码沿用 `GroupMeasure.to_data()`。`detail=True` 时每项再含 `observations` 数组，即对应组的原序 `Observation.to_data()`。`proof` 的格式由实现决定。计量件和明细件各自能以同一固定版的可信锚独立核验。
 - 锚和出件可暴露必要的目录身份和序位。计量件只开启获准组的计量。锚和出件不得携带全日合计、未披露的原文、未获准组的计量，或允许对这些隐藏内容直接试猜验证的材料。拿到其他获准组的正确材料也不能据此开启隐藏内容。可信渠道和获准组的决定由调用方负责。允许读全版或重算证明。
 
+实现上，冻结锚为每组保存两枚互不相干的盐化承诺：计量承诺与明细承诺，绑定版号、日键、版次、从 1 起算的目录序位和组号。锚只含版本身份、目录和承诺摘要，不含读数、出处、批号或合计。V2 交付件携带按所选组裁剪的锚副本和这些组的盐；未选组的位置换成同域不可逆摘要，因而拿到一个正确件也无法据其核对另一隐藏组。核账件的 `proof` 只开获准组对应粒度的盐。`verify_audit` 以可信锚重算承诺来判定版次、序位、组号、计量和原文，并在任何字段不符时抛错而不返回部分结果。
+
 ### 用两版同值组核账
 
 `examples.audit_case` 提供同一天的两批输入。旧目录为 `[5,9,12]`，新版为 `[9,5,12]`。组 5 和组 9 都各有一笔 7 L，组 12 正式为空。第 9 组旧出处是 `gate/b-old`，新出处是 `gate/b-new`。`python3 -B -m examples.audit_case` 从冻结到重开读回两份 V1 日账。加 `--changed-source` 可观察基线中把首件出处改为 `gate/substituted` 后仍然签出 14 L 的对照。夹具的 `detached_anchor` 可复制已经独立取得的锚，`replace_first_source` 可只替换交付件首行的出处。
@@ -67,3 +81,6 @@ python3 -B -m examples.demo
 ### 运行交付
 
 基线运行清单连接原回归和原演示。完成 V2 后沿用 `.pointwise-runtime.json` 的 `version` 为 `1`、`kind` 为 `cli`。`setup` 为准备命令的参数数组列表，可为空，`verify` 和 `demo` 各为一条命令的参数数组。让 `verify` 保留原完整回归并核验上述冻结、实收和按号出件的联动，核验失败须非零退出。用 `demo` 展示换文被拒和重开仓后凭旧锚断库核账的实际结果。
+
+`check_project.py` 先跑完整回归，再以临时库执行 `examples.v2_audit.run` 的冻结、换文拒收、补齐签账、重开导出与断库核验；任一失败以非零退出。`demo` 入口为 `examples.run_demos`，依次运行原 `examples.demo`、`examples.audit_case` 的两版同值组日账，以及 V2 换文拒收和旧号断库核账。
+
