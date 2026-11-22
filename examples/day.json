@@ -1,0 +1,10 @@
+{
+  "day_key": "2026-06-18",
+  "batches": [
+    {"batch_id": "north-morning", "rows": [[1, "north-gate/01", 7]]},
+    {"batch_id": "south-morning", "rows": [[3, "south-gate/01", 11]]}
+  ],
+  "group_ids": [1, 2, 3],
+  "old_selection": [1, 3],
+  "new_selection": [2, 3]
+}
